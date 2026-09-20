@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Aesthetic minimal time-progress tracker widget for Notion showing Year, Day, and Life progress.">
+  <title>Notion Progress Bar Widget</title>
+  <style>
+    /* ==========================================================================
+       DESIGN SYSTEM & CSS VARIABLES
+       Extracted directly from reference image:
+       - Soft dusty-pink / muted rose palette
+       - Minimalist aesthetic, clean white background
+       - Precision outer border (2px), inner white padding (4.5px), and rounded corners
+       ========================================================================== */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500&display=swap');
+
+    :root {
+      --bg-color: #ffffff;
+      --pink-border: #e87fa5;       /* Crisp soft rose outline */
+      --pink-fill: #d17f96;         /* Dusty muted rose inner progress fill */
+      --pink-text: #d17f96;         /* Dusty muted rose typography */
+      --pink-subtle: #fdf2f5;       /* Soft pink tint for settings button hover */
+      --pink-active: #c57288;       /* Slightly deeper rose for button click state */
+      
+      --bar-height: 48px;           /* Proportional outer bar height */
+      --bar-padding: 4.5px;         /* White gap between outer border and inner fill */
+      --bar-radius: 6px;            /* Outer container border radius */
+      --fill-radius: 3.5px;         /* Inner progress fill border radius */
+      --row-gap: 22px;              /* Vertical spacing between rows */
+      --label-gap: 20px;            /* Spacing between progress bar and label */
+      
+      --font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --font-size: 21px;
+      --font-weight: 400;
+    }
+
+    /* Reset & Base Layout */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      background-color: var(--bg-color);
+      font-family: var(--font-family);
+      color: var(--pink-text);
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      overflow: hidden;
+    }
+
+    /* Main Container: Sized and proportioned to match reference canvas */
+    .widget-container {
+      width: 100%;
+      max-width: 960px;
+      height: 100%;
+      margin: 0 auto;
+      padding: 24px 28px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      position: relative;
+      container-type: inline-size;
+      container-name: widget;
+    }
+
+    /* Vertical Progress Rows */
+    .progress-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--row-gap);
+      width: 100%;
+    }
+
+    .progress-row {
+      display: flex;
+      align-items: center;
+      width: 100%;
+      gap: var(--label-gap);
+    }
+
+    /* Outer Progress Track */
+    .progress-track {
+      flex: 1 1 0%;
+      min-width: 0;
+      height: var(--bar-height);
+      border: 2px solid var(--pink-border);
+      border-radius: var(--bar-radius);
+      background-color: #ffffff;
+      padding: var(--bar-padding);
+      display: flex;
+      align-items: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Inner Pink Fill */
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background-color: var(--pink-fill);
+      border-radius: var(--fill-radius);
+      will-change: width;
+    }
+
+    /* Smooth animated transitions */
+    .progress-fill.animated {
+      transition: width 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+    }
+
+    /* Text Label ("Year: 72%", "Day: 16%", "Life: 27%") */
+    .progress-label {
+      flex-shrink: 0;
+      font-size: var(--font-size);
+      font-weight: var(--font-weight);
+      color: var(--pink-text);
+      white-space: nowrap;
+      text-align: left;
+      user-select: none;
+      letter-spacing: 0.1px;
+      line-height: 1;
+    }
+
+    /* ==========================================================================
+       RESPONSIVE DESIGN & CONTAINER QUERIES (Ideal for Notion Columns)
+       ========================================================================== */
+    @container (max-width: 620px) {
+      .progress-list { gap: 16px; }
+      .progress-row { gap: 14px; }
+      .progress-track { height: 38px; padding: 3.5px; }
+      .progress-label { font-size: 16px; }
+    }
+
+    @container (max-width: 400px) {
+      .progress-list { gap: 12px; }
+      .progress-row { gap: 10px; }
+      .progress-track { height: 30px; padding: 3px; border-radius: 5px; }
+      .progress-fill { border-radius: 2.5px; }
+      .progress-label { font-size: 13px; }
+    }
+
+    @media (max-width: 620px) {
+      :root {
+        --bar-height: 38px;
+        --bar-padding: 3.5px;
+        --row-gap: 16px;
+        --label-gap: 14px;
+        --font-size: 16px;
+      }
+      .widget-container {
+        padding: 16px 14px;
+      }
+    }
+
+    @media (max-width: 420px) {
+      :root {
+        --bar-height: 30px;
+        --bar-padding: 3px;
+        --row-gap: 12px;
+        --label-gap: 10px;
+        --font-size: 13px;
+      }
+      .widget-container {
+        padding: 12px 10px;
+      }
+    }
+
+    /* ==========================================================================
+       DISCREET SETTINGS TRIGGER
+       Maintains pure aesthetic; small muted gear in bottom-right corner.
+       Low default opacity (0.2), reveals gently on hover/focus.
+       ========================================================================== */
+    .settings-trigger {
+      position: absolute;
+      bottom: 8px;
+      right: 10px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      padding: 6px;
+      border-radius: 50%;
+      color: var(--pink-text);
+      opacity: 0.2;
+      transition: opacity 0.2s ease, transform 0.2s ease, background-color 0.2s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .settings-trigger:hover,
+    .settings-trigger:focus-visible {
+      opacity: 0.85;
+      background-color: var(--pink-subtle);
+      transform: rotate(30deg);
+      outline: none;
+    }
+
+    .settings-trigger svg {
+      width: 15px;
+      height: 15px;
+      stroke: currentColor;
+      fill: none;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    /* ==========================================================================
+       SETTINGS MODAL
+       Clean, minimal dialog matching the dusty rose visual theme.
+       ========================================================================== */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background-color: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(3px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 100;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+
+    .modal-overlay.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .modal-card {
+      width: 100%;
+      max-width: 350px;
+      background-color: #ffffff;
+      border: 2px solid var(--pink-border);
+      border-radius: 8px;
+      padding: 22px;
+      box-shadow: 0 8px 24px rgba(209, 127, 150, 0.12);
+      transform: scale(0.96);
+      transition: transform 0.2s cubic-bezier(0.2, 0.9, 0.3, 1);
+    }
+
+    .modal-overlay.open .modal-card {
+      transform: scale(1);
+    }
+
+    .modal-title {
+      font-size: 17px;
+      font-weight: 500;
+      color: var(--pink-text);
+      margin-bottom: 14px;
+      letter-spacing: 0.2px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      margin-bottom: 14px;
+    }
+
+    .form-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--pink-text);
+    }
+
+    .form-input {
+      width: 100%;
+      height: 36px;
+      padding: 6px 12px;
+      font-family: inherit;
+      font-size: 14px;
+      color: var(--pink-text);
+      background-color: #ffffff;
+      border: 1.5px solid var(--pink-border);
+      border-radius: 5px;
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .form-input:focus {
+      border-color: var(--pink-fill);
+      box-shadow: 0 0 0 2px var(--pink-subtle);
+    }
+
+    .form-error {
+      font-size: 12px;
+      color: #d14d68;
+      min-height: 16px;
+      margin-bottom: 10px;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 6px;
+    }
+
+    .btn {
+      font-family: inherit;
+      font-size: 13.5px;
+      font-weight: 500;
+      padding: 7px 15px;
+      border-radius: 5px;
+      cursor: pointer;
+      border: none;
+      transition: all 0.15s ease;
+    }
+
+    .btn-cancel {
+      background-color: transparent;
+      color: var(--pink-text);
+      border: 1px solid transparent;
+    }
+
+    .btn-cancel:hover {
+      background-color: var(--pink-subtle);
+    }
+
+    .btn-save {
+      background-color: var(--pink-fill);
+      color: #ffffff;
+      border: 1px solid var(--pink-fill);
+    }
+
+    .btn-save:hover {
+      background-color: var(--pink-active);
+      border-color: var(--pink-active);
+    }
+
+  </style>
+</head>
+<body>
+
+  <!-- Main Notion Widget Container -->
+  <main class="widget-container" id="widgetApp">
+    <div class="progress-list" role="region" aria-label="Time Progress Tracker">
+      
+      <!-- ROW 1: YEAR PROGRESS -->
+      <div class="progress-row" id="yearRow">
+        <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="yearTrack" aria-label="Year Progress">
+          <div class="progress-fill" id="yearFill"></div>
+        </div>
+        <div class="progress-label" id="yearLabel" aria-live="polite">Year: 0%</div>
+      </div>
+
+      <!-- ROW 2: DAY PROGRESS -->
+      <div class="progress-row" id="dayRow">
+        <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="dayTrack" aria-label="Day Progress">
+          <div class="progress-fill" id="dayFill"></div>
+        </div>
+        <div class="progress-label" id="dayLabel" aria-live="polite">Day: 0%</div>
+      </div>
+
+      <!-- ROW 3: LIFE PROGRESS -->
+      <div class="progress-row" id="lifeRow">
+        <div class="progress-track" role="progressbar" aria-valuemin="0" aria-valuemax="100" id="lifeTrack" aria-label="Life Progress">
+          <div class="progress-fill" id="lifeFill"></div>
+        </div>
+        <div class="progress-label" id="lifeLabel" aria-live="polite">Life: 0%</div>
+      </div>
+
+    </div>
+
+    <!-- Discreet Settings Trigger -->
+    <button class="settings-trigger" id="openSettingsBtn" title="Configure Life Settings" aria-label="Configure Life Settings">
+      <svg viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="3"></circle>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+      </svg>
+    </button>
+  </main>
+
+  <!-- Settings Modal Dialog -->
+  <div class="modal-overlay" id="settingsModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal-card">
+      <h2 class="modal-title" id="modalTitle">Life Settings</h2>
+
+      <form id="settingsForm" novalidate>
+        <div class="form-group">
+          <label class="form-label" for="dobInput">Date of Birth</label>
+          <input type="date" class="form-input" id="dobInput" required>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="lifespanInput">Expected Lifespan (Years)</label>
+          <input type="number" class="form-input" id="lifespanInput" min="1" max="130" step="1" required>
+        </div>
+
+        <div class="form-error" id="formError" role="alert"></div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-cancel" id="cancelSettingsBtn">Cancel</button>
+          <button type="submit" class="btn btn-save" id="saveSettingsBtn">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==========================================================================
+       WIDGET LOGIC (Vanilla JavaScript)
+       ========================================================================== -->
+  <script>
+    (function () {
+      'use strict';
+
+      // --- Default Configurations ---
+      const DEFAULT_DOB = '2005-01-01';
+      const DEFAULT_LIFESPAN = 80;
+      const STORAGE_KEY_DOB = 'notion_progress_dob';
+      const STORAGE_KEY_LIFESPAN = 'notion_progress_lifespan';
+
+      // --- DOM Elements ---
+      const yearFill = document.getElementById('yearFill');
+      const yearLabel = document.getElementById('yearLabel');
+      const yearTrack = document.getElementById('yearTrack');
+
+      const dayFill = document.getElementById('dayFill');
+      const dayLabel = document.getElementById('dayLabel');
+      const dayTrack = document.getElementById('dayTrack');
+
+      const lifeFill = document.getElementById('lifeFill');
+      const lifeLabel = document.getElementById('lifeLabel');
+      const lifeTrack = document.getElementById('lifeTrack');
+
+      const settingsModal = document.getElementById('settingsModal');
+      const openSettingsBtn = document.getElementById('openSettingsBtn');
+      const cancelSettingsBtn = document.getElementById('cancelSettingsBtn');
+      const settingsForm = document.getElementById('settingsForm');
+      const dobInput = document.getElementById('dobInput');
+      const lifespanInput = document.getElementById('lifespanInput');
+      const formError = document.getElementById('formError');
+
+      // --- State ---
+      let userSettings = {
+        dob: DEFAULT_DOB,
+        lifespan: DEFAULT_LIFESPAN
+      };
+
+      /**
+       * Safe LocalStorage Helper
+       * Handles sandboxed iframe restrictions cleanly without breaking the widget.
+       */
+      function safeGetStorage(key) {
+        try {
+          return localStorage.getItem(key);
+        } catch (e) {
+          console.warn('LocalStorage not accessible:', e);
+          return null;
+        }
+      }
+
+      function safeSetStorage(key, value) {
+        try {
+          localStorage.setItem(key, value);
+        } catch (e) {
+          console.warn('LocalStorage write failed:', e);
+        }
+      }
+
+      /**
+       * Load Settings from URL query parameters, LocalStorage, or Defaults
+       * Supports Notion embeds with custom parameters like ?dob=YYYY-MM-DD&lifespan=80
+       */
+      function loadSettings() {
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlDob = urlParams.get('dob');
+        const urlLifespan = urlParams.get('lifespan');
+
+        const storedDob = safeGetStorage(STORAGE_KEY_DOB);
+        const storedLifespan = safeGetStorage(STORAGE_KEY_LIFESPAN);
+
+        // Date of birth resolution
+        if (urlDob && isValidDateString(urlDob)) {
+          userSettings.dob = urlDob;
+        } else if (storedDob && isValidDateString(storedDob)) {
+          userSettings.dob = storedDob;
+        } else {
+          userSettings.dob = DEFAULT_DOB;
+        }
+
+        // Expected lifespan resolution
+        if (urlLifespan && !isNaN(Number(urlLifespan)) && Number(urlLifespan) > 0) {
+          userSettings.lifespan = Math.round(Number(urlLifespan));
+        } else if (storedLifespan && !isNaN(Number(storedLifespan)) && Number(storedLifespan) > 0) {
+          userSettings.lifespan = Math.round(Number(storedLifespan));
+        } else {
+          userSettings.lifespan = DEFAULT_LIFESPAN;
+        }
+      }
+
+      function isValidDateString(str) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(str)) return false;
+        const d = new Date(str + 'T00:00:00');
+        return !isNaN(d.getTime());
+      }
+
+      /**
+       * Year Progress Calculation
+       * Elapsed time since Jan 1 00:00:00 of current year / total duration of current year.
+       * Accurately accounts for leap years and continuous local time.
+       */
+      function calculateYearProgress(now) {
+        const currentYear = now.getFullYear();
+        const startOfYear = new Date(currentYear, 0, 1, 0, 0, 0, 0);
+        const endOfYear = new Date(currentYear + 1, 0, 1, 0, 0, 0, 0);
+        const totalDuration = endOfYear.getTime() - startOfYear.getTime();
+        const elapsed = now.getTime() - startOfYear.getTime();
+        const percentage = (elapsed / totalDuration) * 100;
+        return Math.min(100, Math.max(0, percentage));
+      }
+
+      /**
+       * Day Progress Calculation
+       * Elapsed time since local midnight / 24 hours (86,400,000 ms).
+       */
+      function calculateDayProgress(now) {
+        const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+        const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0);
+        const totalDuration = endOfDay.getTime() - startOfDay.getTime();
+        const elapsed = now.getTime() - startOfDay.getTime();
+        const percentage = (elapsed / totalDuration) * 100;
+        return Math.min(100, Math.max(0, percentage));
+      }
+
+      /**
+       * Life Progress Calculation
+       * Precise elapsed time between birth date and expected end date.
+       */
+      function calculateLifeProgress(now, dobString, lifespanYears) {
+        if (!isValidDateString(dobString) || lifespanYears <= 0) {
+          return 0;
+        }
+
+        const [y, m, d] = dobString.split('-').map(Number);
+        const birthDate = new Date(y, m - 1, d, 0, 0, 0, 0);
+        const endDate = new Date(y + lifespanYears, m - 1, d, 0, 0, 0, 0);
+
+        const totalLifeDuration = endDate.getTime() - birthDate.getTime();
+        const elapsedLife = now.getTime() - birthDate.getTime();
+
+        if (totalLifeDuration <= 0) return 100;
+        if (elapsedLife <= 0) return 0;
+
+        const percentage = (elapsedLife / totalLifeDuration) * 100;
+        return Math.min(100, Math.max(0, percentage));
+      }
+
+      /**
+       * Update All Progress Bars
+       * Matches exact percentages to visual width and labels.
+       */
+      function updateAllProgress() {
+        const now = new Date();
+
+        // 1. Year
+        const yearPct = calculateYearProgress(now);
+        const yearRounded = Math.round(yearPct);
+        yearFill.style.width = yearPct + '%';
+        yearLabel.textContent = `Year: ${yearRounded}%`;
+        yearTrack.setAttribute('aria-valuenow', yearRounded);
+
+        // 2. Day
+        const dayPct = calculateDayProgress(now);
+        const dayRounded = Math.round(dayPct);
+        dayFill.style.width = dayPct + '%';
+        dayLabel.textContent = `Day: ${dayRounded}%`;
+        dayTrack.setAttribute('aria-valuenow', dayRounded);
+
+        // 3. Life
+        const lifePct = calculateLifeProgress(now, userSettings.dob, userSettings.lifespan);
+        const lifeRounded = Math.round(lifePct);
+        lifeFill.style.width = lifePct + '%';
+        lifeLabel.textContent = `Life: ${lifeRounded}%`;
+        lifeTrack.setAttribute('aria-valuenow', lifeRounded);
+      }
+
+      // --- Settings Modal Handlers ---
+      function openSettings() {
+        dobInput.value = userSettings.dob;
+        lifespanInput.value = userSettings.lifespan;
+        formError.textContent = '';
+        settingsModal.classList.add('open');
+        dobInput.focus();
+      }
+
+      function closeSettings() {
+        settingsModal.classList.remove('open');
+        formError.textContent = '';
+      }
+
+      function handleSaveSettings(e) {
+        e.preventDefault();
+        const dobVal = dobInput.value.trim();
+        const lifespanVal = Number(lifespanInput.value.trim());
+
+        // Validation
+        if (!isValidDateString(dobVal)) {
+          formError.textContent = 'Please select a valid date of birth.';
+          return;
+        }
+
+        const enteredDate = new Date(dobVal + 'T00:00:00');
+        const today = new Date();
+        today.setHours(23, 59, 59, 999);
+
+        if (enteredDate > today) {
+          formError.textContent = 'Birth date cannot be in the future.';
+          return;
+        }
+
+        if (isNaN(lifespanVal) || lifespanVal < 1 || lifespanVal > 130) {
+          formError.textContent = 'Expected lifespan must be between 1 and 130 years.';
+          return;
+        }
+
+        // Save state
+        userSettings.dob = dobVal;
+        userSettings.lifespan = lifespanVal;
+
+        safeSetStorage(STORAGE_KEY_DOB, userSettings.dob);
+        safeSetStorage(STORAGE_KEY_LIFESPAN, userSettings.lifespan.toString());
+
+        closeSettings();
+        updateAllProgress();
+      }
+
+      // --- Event Listeners ---
+      openSettingsBtn.addEventListener('click', openSettings);
+      cancelSettingsBtn.addEventListener('click', closeSettings);
+      settingsForm.addEventListener('submit', handleSaveSettings);
+
+      // Close modal on click outside card
+      settingsModal.addEventListener('click', function (e) {
+        if (e.target === settingsModal) {
+          closeSettings();
+        }
+      });
+
+      // Keyboard support: Escape closes modal
+      window.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape' && settingsModal.classList.contains('open')) {
+          closeSettings();
+        }
+      });
+
+      // --- Initialization ---
+      loadSettings();
+      updateAllProgress();
+
+      // Check if URL specifies opening settings
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('settings') === 'open') {
+        openSettings();
+      }
+
+      // Enable smooth animated transitions
+      requestAnimationFrame(function () {
+        setTimeout(function () {
+          yearFill.classList.add('animated');
+          dayFill.classList.add('animated');
+          lifeFill.classList.add('animated');
+        }, 50);
+      });
+
+      // Automatically update Day progress every second
+      setInterval(updateAllProgress, 1000);
+
+    })();
+  </script>
+</body>
+</html>
